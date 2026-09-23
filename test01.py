@@ -19,4 +19,6 @@ model=XGBClassifier(random_state=42)
 model.fit(imputed_X_train, y)
 predictions=model.predict(imputed_X_test)
 
-print(predictions)
+output=pd.DataFrame({"PassengerId":test_df["PassengerId"],"Survived":predictions})
+output.to_csv("submission.csv",index=False)
+print("submission.csv の作成が完了しました")
