@@ -1,43 +1,73 @@
-import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
+import numpy as np
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.preprocessing import OrdinalEncoder
 
-df = pd.read_csv("train.csv")
-df_test = pd.read_csv("test.csv")
+# 1. データの読み込み
+train_path = 'train.csv'
+test_path = 'test.csv'
 
-df.loc[df['Age'] > df['Age'].quantile(0.9), 'Age'] = df['Age']= np.nan
-df_test.loc[df_test['Age'] > df['Age'].quantile(0.9), "Age"] = np.nan
+df = pd.read_csv(train_path)
+df_test = pd.read_csv(test_path)
 
-category_list = ['SibSp','Parch','Fare', 'Cabin', 'Embarked','Ticket','Name']
+# 2. 欠損値の補完（Age, Fare, Embarked）
+df['Age'] = df['Age'].fillna(df['Age'].median())
+df_test['Age'] = df_test['Age'].fillna(df['Age'].median())
 
-df.drop(category_list, axis=1, inplace=True)
-df_test.drop(category_list, axis=1, inplace=True)
+df['Fare'] = df['Fare'].fillna(df['Fare'].median())
+df_test['Fare'] = df_test['Fare'].fillna(df['Fare'].median())
 
-df["boy_pclass2"] = ((df['Age'] <= 10)) & (df['Sex'] == "male") & (df["Pclass"] == 2).astype(int)
-df['Sex_Pclass'] = df['Sex'] + '_' + df['Pclass'].astype(str)
-df = pd.get_dummies(df, columns=['Sex_Pclass'], drop_first=True)
-df['Age'] = df.groupby(['Sex', 'Pclass'])['Age'].transform(lambda x: x.fillna(x.median()))
+df['Embarked'] = df['Embarked'].fillna(df['Embarked'].mode()[0])
+df_test['Embarked'] = df_test['Embarked'].fillna(df['Embarked'].mode()[0])
+
+# 3. 外れ値処理（Age）
+age_cap = df['Age'].quantile(0.99)
+df['Age'] = np.where(df['Age'] > age_cap, age_cap, df['Age'])
+df_test['Age'] = np.where(df_test['Age'] > age_cap, age_cap, df_test['Age'])
+
+# 4. 特徴量エンジニアリング（2等の男の子フラグ）
+df["boy_pclass2"] = ((df['Age'] <= 10) & (df['Sex'] == "male") & (df["Pclass"] == 2)).astype(int)
+df_test["boy_pclass2"] = ((df_test['Age'] <= 10) & (df_test['Sex'] == "male") & (df_test["Pclass"] == 2)).astype(int)
+
+# 5. 性別×客室の結合とワンホットエンコーディング
+df['Sex_Pclass'] = df['Sex'].astype(str) + '_' + df['Pclass'].astype(str)
+df_test['Sex_Pclass'] = df_test['Sex'].astype(str) + '_' + df_test['Pclass'].astype(str)
+
+df['is_test'] = 0
+df_test['is_test'] = 1
+combined = pd.concat([df, df_test], axis=0, ignore_ignore_index=True) if hasattr(pd.concat, 'ignore_ignore_index') else pd.concat([df, df_test], axis=0, ignore_index=True)
+combined = pd.get_dummies(combined, columns=['Sex_Pclass'], drop_first=True)
+
+df = combined[combined['is_test'] == 0].drop('is_test', axis=1)
+df_test = combined[combined['is_test'] == 1].drop('is_test', axis=1)
+
+# 6. 不要な列の削除と Sex の数値化
+category_list = ['SibSp', 'Parch', 'Fare', 'Cabin', 'Embarked', 'Ticket', 'Name']
+df = df.drop(columns=[col for col in category_list if col in df.columns])
+df_test = df_test.drop(columns=[col for col in category_list if col in df_test.columns])
 
 label_encoder = OrdinalEncoder()
-df[['Sex']] = label_encoder.fit_transform(df[['Sex']].values)
-df_test[['Sex']] = label_encoder.transform(df_test[['Sex']].values)
+df[['Sex']] = label_encoder.fit_transform(df[['Sex']])
+df_test[['Sex']] = label_encoder.transform(df_test[['Sex']])
 
-X = df.iloc[0:, 2:].values
-y = df.iloc[:, 1].values
+# 7. 特徴量（X）とターゲット（y）の分離
+X = df.drop(['PassengerId', 'Survived'], axis=1)
+y = df['Survived'].astype(int)
+X_test = df_test.drop(['PassengerId', 'Survived'], axis=1, errors='ignore')
 
-X_test = df_test.iloc[:, 1:].values
+# 8. モデルの構築と学習
+model = RandomForestClassifier(random_state=42)
+model.fit(X, y)
 
+# 9. 予測と提出用ファイルの作成
+predictions = model.predict(X_test)
 
-# データを 5 等分（5分割）する設定を作る
-kfold = KFold(n_splits=5)
+sub = pd.DataFrame({
+    'PassengerId': df_test['PassengerId'].astype(int),
+    'Survived': predictions.astype(int)
+})
 
-# 5パターンの組み合わせで学習とテストを自動で行い、5回分のスコアを計算する
-scores = cross_val_score(model, X, y, cv=kfold)
-
-# 5回それぞれのテストスコアを表示する（例: [0.78, 0.81, 0.75, 0.80, 0.79]）
-print('Cross-Validation scores: {}'.format(scores))
-
-# 5回の平均スコアを出す（これがこのモデルの「真の平均実力」！）
-import numpy as np
-print('Average score: {}'.format(np.mean(scores)))# 交差検証 これで提出したら点数出ますかね
+sub.to_csv('submission.csv', index=False)
+print("SUCCESS: submission.csv が正常に作成されました！")
+print("\n--- 提出ファイルの確認 ---")
+print(sub.head())
