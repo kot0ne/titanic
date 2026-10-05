@@ -46,3 +46,6 @@ I'll improve it to the nearby 0.8 and next I'll learn about Data Cleaning.
 
 04
 I was so unmotivated that I selected only a notebook and read roughly.
+
+05
+I struggled with commit on vs code app. It was because I didn't open the titanic folder. I only opened this diary.
