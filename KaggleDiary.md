@@ -43,3 +43,6 @@ Explicitly cast `PassengerId` and `Survived` to `int` types before exporting to 
 I struggled with error, so I relied Gemini on them.
 My second score was 0.73684
 I'll improve it to the nearby 0.8 and next I'll learn about Data Cleaning.
+
+04
+I was so unmotivated that I selected only a notebook and read roughly.
