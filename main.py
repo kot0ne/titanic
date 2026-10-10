@@ -36,27 +36,18 @@ df['Age'] = np.where(df['Age'] > age_cap, age_cap, df['Age'])
 df_test['Age'] = np.where(df_test['Age'] > age_cap, age_cap, df_test['Age'])
 
 # 4. 特徴量エンジニアリング（2等の男の子フラグ）
-df["boy_pclass2"] = ((df['Age'] <= 10) & (df['Sex'] == "male") & (df["Pclass"] == 2)).astype(int)
-df_test["boy_pclass2"] = ((df_test['Age'] <= 10) & (df_test['Sex'] == "male") & (df_test["Pclass"] == 2)).astype(int)
+for data in [df, df_test]:
+    data["boy_pclass2"] = ((data['Age'] <= 10) & (data['Sex'] == "male") & (data["Pclass"] == 2)).astype(int)
+    data['Age*Class'] = data['Age'] * data['Pclass']
+    data['Age*Fare'] = data['Age'] * data['Fare']
+    data['FamilySize'] = data['SibSp'] + data['Parch'] + 1
+    data['IsAlone'] = (data['FamilySize'] == 1).astype(int)
 
-# 掛け合わせ特徴量
-df['Age*Class'] = df['Age'] * df['Pclass']
-df['Age*Fare'] = df['Age'] * df['Fare']
+    data['AgeBand'] = pd.cut(data['Age'], bins=[0, 12, 20, 40, 60, np.inf], labels=[0, 1, 2, 3, 4]).astype(int)
+    data['FareBand'] = pd.qcut(data['Fare'], q=4, labels=[0, 1, 2, 3], duplicates='drop').astype(int)
+    data['Fare_log'] = np.log1p(data['Fare'])
+    data['Sex_Pclass'] = data['Sex'].astype(str) + '_' + data['Pclass'].astype(str)
 
-# 家族関連
-df['FamilySize'] = df['SibSp'] + df['Parch'] + 1
-df['IsAlone'] = (df['FamilySize'] == 1).astype(int)
-
-# ビニング（カテゴリ化）
-df['AgeBand'] = pd.cut(df['Age'], bins=[0, 12, 20, 40, 60, np.inf], labels=[0, 1, 2, 3, 4]).astype(int)
-df['FareBand'] = pd.qcut(df['Fare'], q=4, labels=[0, 1, 2, 3]).astype(int)
-
-# 対数変換（右に裾が長い分布の歪み対策）
-df['Fare_log'] = np.log1p(df['Fare'])
-
-# 5. 性別×客室の結合とワンホットエンコーディング
-df['Sex_Pclass'] = df['Sex'].astype(str) + '_' + df['Pclass'].astype(str)
-df_test['Sex_Pclass'] = df_test['Sex'].astype(str) + '_' + df_test['Pclass'].astype(str)
 
 df_sex = pd.get_dummies(df['Sex'], prefix='sex', drop_first=True, dtype=int)
 df_Pclass = pd.get_dummies(df['Pclass'], prefix='class', drop_first=True, dtype=int)
@@ -66,37 +57,39 @@ df_Title = pd.get_dummies(df['Title'], prefix='Title', drop_first=False, dtype=i
 # 結合
 df = pd.concat([df, df_sex, df_Pclass, df_Embarked, df_Title], axis=1)
 
-# 元データ・不要列の削除
-drop_cols = ['Sex', 'Pclass', 'Name', 'Ticket', 'Embarked', 'Cabin', 'Title', 'Fare', 'SibSp', 'Parch']
-df = df.drop(drop_cols, axis=1)
+df_test_sex = pd.get_dummies(df_test['Sex'], prefix='sex', drop_first=True, dtype=int)
+df_test_Pclass = pd.get_dummies(df_test['Pclass'], prefix='class', drop_first=True, dtype=int)
+df_test_Embarked = pd.get_dummies(df_test['Embarked'], prefix='Embarked', drop_first=True, dtype=int)
+df_test_Title = pd.get_dummies(df_test['Title'], prefix='Title', drop_first=False, dtype=int)
+df_test = pd.concat([df_test, df_test_sex, df_test_Pclass, df_test_Embarked, df_test_Title], axis=1)
 
-df = combined[combined['is_test'] == 0].drop('is_test', axis=1)
-df_test = combined[combined['is_test'] == 1].drop('is_test', axis=1)
+drop_cols = ['Name', 'Ticket', 'Cabin', 'Embarked', 'Title', 'Sex', 'Pclass', 'Sex_Pclass', 'Survived']
 
-# 6. 不要な列の削除と Sex の数値化
-category_list = ['SibSp', 'Parch', 'Fare', 'Cabin', 'Embarked', 'Ticket', 'Name']
-df = df.drop(columns=[col for col in category_list if col in df.columns])
-df_test = df_test.drop(columns=[col for col in category_list if col in df_test.columns])
-
-label_encoder = OrdinalEncoder()
-df[['Sex']] = label_encoder.fit_transform(df[['Sex']])
-df_test[['Sex']] = label_encoder.transform(df_test[['Sex']])
-
-numeric_columns = df.select_dtypes(include=['float64', 'int64']).columns
-
-mew = df[numeric_columns].mean(axis=0)
-std = df[numeric_columns].std(axis=0)
-
-df[numeric_columns] = (df[numeric_columns] - mew) / std
-
-# 7. 特徴量（X）とターゲット（y）の分離
-X = df.drop(['PassengerId', 'Survived'], axis=1)
+X = df.drop(columns=[col for col in drop_cols if col in df.columns])
 y = df['Survived'].astype(int)
-X_test = df_test.drop(['PassengerId', 'Survived'], axis=1, errors='ignore')
 
-# 8. モデルの構築と学習
+X_test = df_test.drop(columns=[col for col in drop_cols if col in df_test.columns and col != 'Survived'], errors='ignore')
+
+# 訓練データとテストデータの列の並び・種類を完全に一致させる（Kaggleの鉄則！）
+X, X_test = X.align(X_test, join='left', axis=1, fill_value=0)
+
+
+# 7. 数値データの標準化（Zスコア化）
+numeric_columns = X.select_dtypes(include=['float64', 'int64']).columns
+mew = X[numeric_columns].mean(axis=0)
+std = X[numeric_columns].std(axis=0).replace(0, 1) # ゼロ割防止
+
+X[numeric_columns] = (X[numeric_columns] - mew) / std
+X_test[numeric_columns] = (X_test[numeric_columns] - mew) / std
+
+
+# 8. 特徴量（X）から PassengerId を除外してモデル学習
+X = X.drop(['PassengerId'], axis=1, errors='ignore')
+X_test = X_test.drop(['PassengerId'], axis=1, errors='ignore')
+
 model = RandomForestClassifier(random_state=42)
 model.fit(X, y)
+
 
 # 9. 予測と提出用ファイルの作成
 predictions = model.predict(X_test)
