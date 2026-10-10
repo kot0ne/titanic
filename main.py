@@ -12,11 +12,24 @@ df = pd.read_csv(train_path)
 df_test = pd.read_csv(test_path)
 df.set_index('PassengerId', inplace=True)
 
-df['Title'] = df['Name'].str.extract(r' ([A-Za-z]+)\.', expand=False)
+# 1. タイトル（敬称）の抽出（df と df_test の両方に行う）
+for data in [df, df_test]:
+    data['Title'] = data['Name'].str.extract(r' ([A-Za-z]+)\.', expand=False)
+
 title_mapping = {'Mlle': 'Miss', 'Ms': 'Miss', 'Mme': 'Mrs'}
 df['Title'] = df['Title'].replace(title_mapping)
+df_test['Title'] = df_test['Title'].replace(title_mapping)
 
+for data in [df, df_test]:
+    title_mask = ~data['Title'].isin(['Mr', 'Miss', 'Mrs', 'Master'])
+    data.loc[title_mask, 'Title'] = data.loc[title_mask, 'Sex'].map({'male': 'Mr', 'female': 'Mrs'})
 
+title_age_medians = {
+    'Mr': 32.32, 
+    'Miss': 21.68, 
+    'Mrs': 35.86, 
+    'Master': 4.57
+}
 
 for data in [df, df_test]:
     for title, median_age in title_age_medians.items():
@@ -34,6 +47,7 @@ df_test['Embarked'] = df_test['Embarked'].fillna(df['Embarked'].mode()[0])
 age_cap = df['Age'].quantile(0.99)
 df['Age'] = np.where(df['Age'] > age_cap, age_cap, df['Age'])
 df_test['Age'] = np.where(df_test['Age'] > age_cap, age_cap, df_test['Age'])
+
 
 # 4. 特徴量エンジニアリング（2等の男の子フラグ）
 for data in [df, df_test]:
