@@ -49,3 +49,10 @@ I was so unmotivated that I selected only a notebook and read roughly.
 
 05
 I struggled with commit on vs code app. It was because I didn't open the titanic folder. I only opened this diary.
+
+06-09
+I did'nt make progress anything.
+
+10
+I read a high vote notebook and mimiced. I struggled with error. forgot to align the test data format with the training data format.
+The third score was 0.75837. I'll change the model not only RandomForest but LightGBM or XGBoost.
