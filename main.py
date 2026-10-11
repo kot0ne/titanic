@@ -100,7 +100,14 @@ X_test[numeric_columns] = (X_test[numeric_columns] - mew) / std
 X = X.drop(['PassengerId'], axis=1, errors='ignore')
 X_test = X_test.drop(['PassengerId'], axis=1, errors='ignore')
 
-model = XGBClassifier(random_state=42)
+model = XGBClassifier(
+    random_state=42,
+    max_depth=3,          # 木の深さを浅くして、複雑に考えすぎないようにする
+    learning_rate=0.05,   # 学習のスピードをゆっくりにして慎重に覚えさせる
+    n_estimators=100,     # 木の数
+    subsample=0.8,        # データの8割だけを使ってランダムに学習する
+    colsample_bytree=0.8  # 特徴量の8割だけを使ってランダムに学習する
+)
 model.fit(X, y)
 
 
