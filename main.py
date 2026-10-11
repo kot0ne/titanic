@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 from xgboost import XGBClassifier
 from sklearn.preprocessing import OrdinalEncoder
+from sklearn.model_selection import KFold, cross_val_score
 
 # 1. データの読み込み
 train_path = 'train.csv'
@@ -108,6 +109,17 @@ model = XGBClassifier(
     subsample=0.8,        # データの8割だけを使ってランダムに学習する
     colsample_bytree=0.8  # 特徴量の8割だけを使ってランダムに学習する
 )
+
+kfold = KFold(n_splits=5, shuffle=True, random_state=42)
+
+# 5パターンの組み合わせで学習とテストを自動で行い、5回分のスコアを計算する
+scores = cross_val_score(model, X, y, cv=kfold)
+
+# 5回それぞれのテストスコアを表示する
+print('Cross-Validation scores: {}'.format(scores))
+
+# 5回の平均スコアを出す（これがこのモデルの「真の平均実力」！）
+print('Average score: {}'.format(np.mean(scores)))
 model.fit(X, y)
 
 
