@@ -1,7 +1,6 @@
 import pandas as pd
 import numpy as np
-import joblib
-from sklearn.ensemble import RandomForestClassifier
+from xgboost import XGBClassifier
 from sklearn.preprocessing import OrdinalEncoder
 
 # 1. データの読み込み
@@ -101,7 +100,7 @@ X_test[numeric_columns] = (X_test[numeric_columns] - mew) / std
 X = X.drop(['PassengerId'], axis=1, errors='ignore')
 X_test = X_test.drop(['PassengerId'], axis=1, errors='ignore')
 
-model = RandomForestClassifier(random_state=42)
+model = XGBClassifier(random_state=42)
 model.fit(X, y)
 
 
